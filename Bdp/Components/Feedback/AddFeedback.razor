@@ -1,0 +1,144 @@
+﻿@using Bdp.Components.Models
+@using Bdp.Data
+@using Bdp.Data.Models
+@using Bdp.Services
+@using Mapster
+@using Microsoft.AspNetCore.Authorization
+@inherits Bdp.Components.Pages.AuthenticatedComponentBase
+
+@attribute [Authorize]
+
+<RadzenStack>
+    <RadzenButton Visible="@_showAddButton" Click="ToggleIsAdding">Add With Form And Validation</RadzenButton>
+    <RadzenCard class="rz-my-12" Visible="@IsAdding">
+        <RadzenText TextStyle="TextStyle.H6">
+            <strong>Submit feedback</strong>
+        </RadzenText>
+
+        <RadzenTemplateForm TItem="FeedbackModel" Data="@_feedbackModel" Submit="@HandleValidSubmit">
+            <RadzenRow Gap="2rem" class="rz-p-0 rz-p-lg-4">
+                <RadzenColumn Size="12" SizeMD="6">
+                    <RadzenStack>
+                        <RadzenFieldset Text="Contact Info">
+                            <RadzenStack Gap="1rem">
+                                <RadzenRow AlignItems="AlignItems.Center">
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Customer Name" Component="CustomerName"/>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="8">
+                                        <RadzenTextBox style="display: block"
+                                                       Name="CustomerName" @bind-Value=@_feedbackModel.CustomerName
+                                                       class="rz-w-100"/>
+                                        <RadzenDataAnnotationValidator Popup="@ShowValidationAsPopup"
+                                                                       Component="CustomerName"
+                                                                       Style="position: absolute"/>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow AlignItems="AlignItems.Center">
+                                    <RadzenColumn Size="12" SizeMD="4">
+                                        <RadzenLabel Text="Feedback Message" Component="FeedbackMessage"/>
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="12" SizeMD="8">
+                                        <RadzenTextBox style="display: block"
+                                                       Name="FeedbackMessage" @bind-Value=@_feedbackModel.FeedbackMessage
+                                                       class="rz-w-100"/>
+                                        <RadzenDataAnnotationValidator Popup="@ShowValidationAsPopup"
+                                                                       Component="FeedbackMessage"
+                                                                       Style="position: absolute"/>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </RadzenStack>
+                        </RadzenFieldset>
+                    </RadzenStack>
+                </RadzenColumn>
+            </RadzenRow>
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.Center" Gap="1rem" class="rz-mt-8 rz-mb-4">
+                <RadzenButton ButtonType="ButtonType.Submit" Size="ButtonSize.Large" Icon="save" Text="Save"/>
+                <RadzenButton ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Large" Icon="cancel" Text="Cancel" Click="@Cancel"/>
+            </RadzenStack>
+        </RadzenTemplateForm>
+    </RadzenCard>
+</RadzenStack>
+
+@code {
+    [Inject] private IFeedbackService FeedbackService { get; set; }
+    [Inject] private NotificationService NotificationService { get; set; }
+
+    [Parameter] public EventCallback FeedbackAdded { get; set; }
+
+    private const bool ShowValidationAsPopup = false;
+    private FeedbackModel _feedbackModel;
+    private bool _showAddButton = true;
+    private bool IsAdding => !_showAddButton;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        CreateEmptyModel();
+    }
+
+    private async Task HandleValidSubmit(FeedbackModel model)
+    {
+        var notificationMessage = new NotificationMessage()
+        {
+            Summary = "Adding Feedback",
+            Duration = 3000
+        };
+        try
+        {
+            // Map FeedbackViewModel to Feedback
+            var feedback = model.Adapt<Feedback>();
+
+            // Add feedback to repository
+            var result = await FeedbackService.Save(feedback);
+
+            if (result.IsSuccess)
+            {
+                notificationMessage.Detail = "Feedback submitted successfully!";
+                notificationMessage.Severity = NotificationSeverity.Success;
+                // Clear the form
+                CreateEmptyModel();
+
+                if (FeedbackAdded.HasDelegate)
+                {
+                    await FeedbackAdded.InvokeAsync();
+                }
+
+                ToggleIsAdding();
+            }
+            else
+            {
+                notificationMessage.Detail = "An error occurred: " + result.Message;
+                notificationMessage.Severity = NotificationSeverity.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            notificationMessage.Detail = "An error occurred: " + ex.Message;
+            notificationMessage.Severity = NotificationSeverity.Error;
+        }
+
+        NotificationService.Notify(notificationMessage);
+    }
+
+    private async Task Cancel()
+    {
+        CreateEmptyModel();
+        _showAddButton = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void CreateEmptyModel()
+    {
+        _feedbackModel = new FeedbackModel()
+        {
+            CustomerName = UserName,
+            DateSubmitted = DateTime.Now
+        };
+    }
+
+    private void ToggleIsAdding()
+    {
+        _showAddButton = !_showAddButton;
+    }
+}

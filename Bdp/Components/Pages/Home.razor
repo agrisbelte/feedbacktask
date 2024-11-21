@@ -1,0 +1,70 @@
+﻿@page "/"
+@using Bdp.Core
+
+<PageTitle>Home</PageTitle>
+
+<div class="container">
+    <h1>Feedback Submission Task</h1>
+
+    <a href="@Globals.Pages.ManageFeedback">ManageFeedback</a>
+
+    <h2>Authentication</h2>
+    <ul>
+        <li>The app uses cookie-based local user authentication with a custom database provider and ASP.NET identity tables.</li>
+        <li>Authentication setup is provided by the default Blazor template in Visual Studio.</li>
+    </ul>
+
+    <h2>Database</h2>
+    <ul>
+        <li>The app uses a local SQL Server database but can be deployed on Azure.</li>
+        <li>A code-first approach with entities and migrations is used for table creation.</li>
+        <li>In order to create tables run <code>update-database</code> in the Package Manager Console.</li>
+    </ul>
+
+    <h2>Architecture</h2>
+    <ul>
+        <li>
+            The app is built in a single project for simplicity, but it follows a layered architecture using folders:
+            <ul>
+                <li><strong>Data:</strong> Contains repositories, DbContext, and entities.</li>
+                <li><strong>Services:</strong> Handles business logic and includes server-side validation for the feedback entity.</li>
+                <li><strong>Core:</strong> Stores global models and constants shared across layers.</li>
+                <li><strong>Mappers and Validators:</strong> These are separate folders and will eventually move into the Core project.</li>
+            </ul>
+        </li>
+        <li>The <code>FeedbackPage</code> inherits a custom <code>AuthenticatedComponentBase</code>, which provides access to the signed-in user's profile.</li>
+        <li>All service and repository methods return <code>OperationResult&lt;T&gt;</code> for consistent error management.</li>
+    </ul>
+
+    <h2>App Functionality</h2>
+    <ul>
+        <li>The home page and side menu link to the Feedback Page, which requires user authentication.</li>
+        <li>When submitting feedback, the app pre-fills the signed-in username in the "Customer Name" field.</li>
+        <li>
+            Feedback can be added via:
+            <ul>
+                <li>A blue "Add Feedback" button at the top.</li>
+                <li>A green "Add Feedback" button in the data grid.</li>
+            </ul>
+        </li>
+        <li>These were implemented separately because I started with a custom <code>AddFeedback</code> component and later integrated Radzen's data grid functionality.</li>
+        <li>
+            The <code>AddFeedback</code> component:
+            <ul>
+                <li>Uses <code>FeedbackModel</code> with Data Annotations for validation.</li>
+                <li>Uses Mapster to map the model to the entity.</li>
+            </ul>
+        </li>
+        <li>The data grid uses Radzen validation.</li>
+        <li>FluentValidation is implemented in the business layer for advanced validation rules.</li>
+    </ul>
+
+    <h2>Code Quality</h2>
+    <ul>
+        <li>This is a proof-of-concept and not production-ready.</li>
+        <li>Styling is minimal, focusing only on achieving the required functionality.</li>
+    </ul>
+</div>
+
+
+<a href="@Globals.Pages.ManageFeedback">ManageFeedback</a>

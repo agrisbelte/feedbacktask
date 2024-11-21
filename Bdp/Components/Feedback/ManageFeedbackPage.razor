@@ -1,0 +1,261 @@
+﻿@using Bdp.Core
+@using Bdp.Data
+@using Bdp.Data.Models
+@using Bdp.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Route(Globals.Pages.ManageFeedback)]
+@inherits Bdp.Components.Pages.AuthenticatedComponentBase
+
+@attribute [Authorize]
+
+<RadzenStack>
+    <AddFeedback FeedbackAdded="@OnFeedbackAdded"/>
+
+    @if (_feedbacks is not null)
+    {
+        <RadzenDataGrid @ref="_feedbackGrid"
+                        AllowAlternatingRows="true"
+                        AllowFiltering="false"
+                        AllowPaging="true" PageSize="5"
+                        AllowSorting="true"
+                        EditMode="@_editMode"
+                        Data="@_feedbacks"
+                        TItem="Feedback"
+                        RowUpdate="@OnUpdateRow"
+                        RowCreate="@OnCreateRow"
+                        Sort="@Reset"
+                        Page="@Reset"
+                        Filter="@Reset"
+                        ColumnWidth="100px">
+
+            <HeaderTemplate>
+                <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle" Text="Submit Feedback"
+                              Click="@InsertRow"
+                              Disabled="@(_feedbacksToInsert.Any())"/>
+            </HeaderTemplate>
+
+            <Columns>
+                <RadzenDataGridColumn Property="@nameof(Feedback.CustomerName)"
+                                      Filterable="false" Title="Customer Name"
+                                      Frozen="true" Width="100px" TextAlign="TextAlign.Center">
+
+                    <EditTemplate Context="feedback">
+                        <RadzenTextBox ReadOnly="true" @bind-Value="feedback.CustomerName" 
+                                       Style="width:100px; display: block" Name="CustomerName"
+                                       aria-label="Enter customer name"/>
+                        <RadzenRequiredValidator Text="@Globals.ValidationMessages.CustomerNameRequired"
+                                                 Component="CustomerName" Popup="true" Style="position: absolute" />
+                        <RadzenLengthValidator Max="100" Text="@Globals.ValidationMessages.CustomerNameMaxLength"
+                                               Component="CustomerName" Popup="true" Style="position: absolute" />
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Property="@nameof(Feedback.DateSubmitted)"
+                                      Filterable="false" Title="Date Sumbitted"
+                                      Frozen="true" Width="100px" TextAlign="TextAlign.Center">
+                    <EditTemplate Context="feedback">
+                        <RadzenTextBox ReadOnly="true"
+                                       Value="@feedback.DateSubmitted.ToString()"
+                                       Style="width:100px; display: block" Name="DateSubmitted"/>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn Width="300px" Property="@nameof(Feedback.FeedbackMessage)"
+                                      Filterable="false" Title="Feedback Message"
+                                      Frozen="true" TextAlign="TextAlign.Start">
+                    <EditTemplate Context="feedback">
+                        <RadzenTextBox @bind-Value="feedback.FeedbackMessage" Style="width:300px; display: block" Name="FeedbackMessage"
+                                       aria-label="Enter Feedback Message"/>
+                        <RadzenRequiredValidator Text="@Globals.ValidationMessages.FeedbackRequired"
+                                                 Component="FeedbackMessage" Popup="true" Style="position: absolute" />
+                        <RadzenLengthValidator Max="100" Text="@Globals.ValidationMessages.FeedbackMaxLength"
+                                               Component="FeedbackMessage" Popup="true" Style="position: absolute" />
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn
+                    Width="100px"
+                    Context="feedback" Filterable="false" Sortable="false" TextAlign="TextAlign.Right"
+                    Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
+                    <Template Context="feedback">
+                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@(args => EditRow(feedback))" @onclick:stopPropagation="true">
+                        </RadzenButton>
+                        <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="rz-my-1 rz-ms-1" Click="@(args => DeleteRow(feedback))" @onclick:stopPropagation="true">
+                        </RadzenButton>
+                    </Template>
+                    <EditTemplate Context="feedback">
+                        <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@((args) => SaveRow(feedback))" aria-label="Save">
+                        </RadzenButton>
+                        <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="rz-my-1 rz-ms-1" Click="@((args) => CancelEdit(feedback))" aria-label="Cancel">
+                        </RadzenButton>
+                        <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="rz-my-1 rz-ms-1" Click="@(args => DeleteRow(feedback))" aria-label="Delete">
+                        </RadzenButton>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    }
+</RadzenStack>
+
+
+@code {
+    private IEnumerable<Feedback>? _feedbacks;
+    private readonly DataGridEditMode _editMode = DataGridEditMode.Single;
+    private RadzenDataGrid<Feedback> _feedbackGrid;
+    private readonly List<Feedback> _feedbacksToInsert = [];
+    private readonly List<Feedback> _feedbacksToUpdate = [];
+
+    [Inject] private IFeedbackService FeedbackService { get; set; }
+    [Inject] private NotificationService NotificationService { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadDataAsync();
+    }
+
+    private async Task OnFeedbackAdded()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        var result = await FeedbackService.GetAll();
+
+        if (result.IsSuccess)
+        {
+            _feedbacks = result.Data;
+        }
+        else
+        {
+            ShowError(result.Message);
+        }
+    }
+
+    private void ShowError(string resultMessage)
+    {
+        var notificationMessage = new NotificationMessage()
+        {
+            Summary = "Error",
+            Duration = 3000,
+            Detail = resultMessage,
+            Severity = NotificationSeverity.Error
+        };
+
+        NotificationService.Notify(notificationMessage);
+    }
+
+    private async Task EditRow(Feedback feedback)
+    {
+        if (!_feedbackGrid.IsValid)
+        {
+            return;
+        }
+
+        Reset();
+
+        _feedbacksToUpdate.Add(feedback);
+        await _feedbackGrid.EditRow(feedback);
+    }
+
+    async Task SaveRow(Feedback feedback)
+    {
+        await _feedbackGrid.UpdateRow(feedback);
+    }
+
+    async Task CancelEdit(Feedback feedback)
+    {
+        Reset(feedback);
+
+        _feedbackGrid.CancelEditRow(feedback);
+
+        await LoadDataAsync();
+    }
+
+    async Task DeleteRow(Feedback feedback)
+    {
+        Reset(feedback);
+
+        await FeedbackService.Delete(feedback.Id);
+
+        await LoadDataAsync();
+    }
+
+    async Task InsertRow()
+    {
+        if (!_feedbackGrid.IsValid) return;
+
+        if (_editMode == DataGridEditMode.Single)
+        {
+            Reset();
+        }
+
+        var order = new Feedback { CustomerName = UserName };
+        _feedbacksToInsert.Add(order);
+        await _feedbackGrid.InsertRow(order);
+    }
+
+    private async Task OnUpdateRow(Feedback feedback)
+    {
+        Reset(feedback);
+
+        var notificationMessage = new NotificationMessage()
+        {
+            Summary = "Updating Feedback",
+            Duration = 3000
+        };
+
+        var result = await FeedbackService.Save(feedback);
+
+        if (result.IsSuccess)
+        {
+            notificationMessage.Detail = "Feedback updated successfully!";
+            notificationMessage.Severity = NotificationSeverity.Success;
+        }
+        else
+        {
+            notificationMessage.Detail = "An error occurred: " + result.Message;
+            notificationMessage.Severity = NotificationSeverity.Error;
+        }
+
+        NotificationService.Notify(notificationMessage);
+    }
+
+    private async Task OnCreateRow(Feedback feedback)
+    {
+        var notificationMessage = new NotificationMessage()
+        {
+            Summary = "Adding Feedback",
+            Duration = 3000
+        };
+
+        var result = await FeedbackService.Save(feedback);
+
+        if (result.IsSuccess)
+        {
+            notificationMessage.Detail = "Feedback submitted successfully!";
+            notificationMessage.Severity = NotificationSeverity.Success;
+        }
+        else
+        {
+            notificationMessage.Detail = "An error occurred: " + result.Message;
+            notificationMessage.Severity = NotificationSeverity.Error;
+        }
+
+        NotificationService.Notify(notificationMessage);
+
+        _feedbacksToInsert.Remove(feedback);
+    }
+
+    void Reset()
+    {
+        _feedbacksToInsert.Clear();
+        _feedbacksToUpdate.Clear();
+    }
+
+    void Reset(Feedback feedback)
+    {
+        _feedbacksToInsert.Remove(feedback);
+        _feedbacksToUpdate.Remove(feedback);
+    }
+
+}
